@@ -29,3 +29,9 @@ app:
     jwt:
       secret: ${JWT_SECRET}
       expiration: ${JWT_EXPIRATION}
+  document:
+    # Upload directory for supporting documents.
+    # Default: /tmp/legalscale-uploads (works on Render free tier for testing).
+    # Files are lost on container restart — acceptable for testing.
+    # For production: set DOCUMENT_UPLOAD_DIR to a mounted persistent volume path.
+    upload-dir: ${DOCUMENT_UPLOAD_DIR:/tmp/legalscale-uploads}
