@@ -7,14 +7,18 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -24,36 +28,47 @@ import java.util.UUID;
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final S3Client s3Client;
 
-    @Value("${app.document.upload-dir:/tmp/legalscale-uploads}")
-    private String uploadDir;
+    @Value("${app.aws.s3.bucket-name}")
+    private String bucketName;
 
-    /**
-     * Runs once at startup — logs the active upload directory.
-     * This makes it easy to confirm the path in Render's deployment logs.
-     */
     @PostConstruct
     public void init() {
-        log.info("Document upload directory: {}", Paths.get(uploadDir).toAbsolutePath());
+        log.info("S3 Document Service initialized for bucket: {}", bucketName);
     }
 
     @Override
     public DocumentResponse upload(MultipartFile file, Long uploadedByUserId) {
         try {
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
+            String origName = file.getOriginalFilename();
+            String originalFileName = (origName != null && !origName.isBlank()) ? origName : "unnamed_file";
 
-            String originalFileName = file.getOriginalFilename();
-            String storedFileName = UUID.randomUUID() + "_" + originalFileName;
-            Path filePath = uploadPath.resolve(storedFileName);
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            String contentType = file.getContentType();
+            String fileType = (contentType != null && !contentType.isBlank()) ? contentType
+                    : "application/octet-stream";
+
+            String storedFileName = UUID.randomUUID() + "_" + originalFileName.replaceAll("[^a-zA-Z0-9.-]", "_"); // Replace
+                                                                                                                  // special
+                                                                                                                  // characters
+                                                                                                                  // that
+                                                                                                                  // might
+                                                                                                                  // cause
+                                                                                                                  // issues
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(storedFileName)
+                    .contentType(fileType)
+                    .build();
+
+            s3Client.putObject(putObjectRequest,
+                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
             Document document = Document.builder()
                     .fileName(originalFileName)
-                    .fileType(file.getContentType())
-                    .fileUrl(filePath.toString())
+                    .fileType(fileType)
+                    .fileUrl(storedFileName)
                     .uploadDate(LocalDateTime.now())
                     .uploadedByUserId(uploadedByUserId)
                     .build();
@@ -61,7 +76,9 @@ public class DocumentServiceImpl implements DocumentService {
             Document saved = documentRepository.save(document);
             return toResponse(saved);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to store file: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to read file input stream: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to store file in S3: " + e.getMessage(), e);
         }
     }
 
@@ -70,6 +87,24 @@ public class DocumentServiceImpl implements DocumentService {
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found with id: " + id));
         return toResponse(document);
+    }
+
+    @Override
+    public Resource download(Long id) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found with id: " + id));
+
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(document.getFileUrl())
+                    .build();
+
+            ResponseInputStream<GetObjectResponse> s3Object = s3Client.getObject(getObjectRequest);
+            return new InputStreamResource(s3Object);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to download file from S3: " + e.getMessage(), e);
+        }
     }
 
     private DocumentResponse toResponse(Document document) {

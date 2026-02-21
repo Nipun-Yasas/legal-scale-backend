@@ -35,3 +35,9 @@ app:
     # Files are lost on container restart — acceptable for testing.
     # For production: set DOCUMENT_UPLOAD_DIR to a mounted persistent volume path.
     upload-dir: ${DOCUMENT_UPLOAD_DIR:/tmp/legalscale-uploads}
+  aws:
+    s3:
+      bucket-name: ${AWS_S3_BUCKET_NAME}
+      region: ${AWS_REGION}
+      access-key: ${AWS_ACCESS_KEY_ID}
+      secret-key: ${AWS_SECRET_ACCESS_KEY}

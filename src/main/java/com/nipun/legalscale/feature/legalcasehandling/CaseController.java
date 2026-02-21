@@ -9,7 +9,6 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -49,10 +48,10 @@ public class CaseController {
      * Key: data | Type: Text | Value: {"caseTitle":"...","caseType":"LAND",...}
      * Key: attachments | Type: File | Value: <select file> ← repeat for each file
      */
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping
     public ResponseEntity<CaseResponse> createCase(
             @RequestParam("data") String dataJson,
-            @RequestPart(value = "attachments", required = false) List<MultipartFile> attachments) {
+            @RequestParam(value = "attachments", required = false) MultipartFile[] attachments) {
 
         // Deserialize the JSON string manually (avoids Content-Type: application/json
         // requirement on the part)
@@ -70,7 +69,7 @@ public class CaseController {
             throw new ConstraintViolationException(violations);
         }
 
-        List<MultipartFile> files = (attachments != null) ? attachments : Collections.emptyList();
+        List<MultipartFile> files = (attachments != null) ? List.of(attachments) : Collections.emptyList();
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(caseService.createCase(request, files));
@@ -87,15 +86,7 @@ public class CaseController {
 
     // ─── Standalone Attachment Management ────────────────────────────────────────
 
-    /**
-     * POST /api/cases/{id}/attachments
-     *
-     * Upload and attach a single supporting document to an existing case.
-     *
-     * Content-Type: multipart/form-data
-     * Part "file" – the file to upload
-     */
-    @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping("/{id}/attachments")
     public ResponseEntity<CaseResponse> attachDocument(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file) {

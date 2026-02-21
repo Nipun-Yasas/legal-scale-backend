@@ -1,4 +1,4 @@
-package com.example.legalscale;
+package com.nipun.legalscale;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

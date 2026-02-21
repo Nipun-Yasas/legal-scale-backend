@@ -77,6 +77,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleException(Exception ex) {
+        ex.printStackTrace();
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
+                ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred");
+    }
+
     // ─── Shared builder
     // ───────────────────────────────────────────────────────────
 

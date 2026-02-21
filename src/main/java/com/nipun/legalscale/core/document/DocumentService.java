@@ -5,5 +5,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface DocumentService {
     DocumentResponse upload(MultipartFile file, Long uploadedByUserId);
+
     DocumentResponse findById(Long id);
+
+    org.springframework.core.io.Resource download(Long id);
 }
