@@ -1,0 +1,8 @@
+package com.nipun.legalscale.core.exception;
+
+public class AccountBannedException extends RuntimeException {
+
+    public AccountBannedException(String message) {
+        super(message);
+    }
+}
