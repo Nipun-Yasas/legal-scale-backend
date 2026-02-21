@@ -6,6 +6,6 @@ public enum CaseType {
     APPEALS,
     LAND,
     CRIMINAL,
-    DISCIPLINARY,
+    INQUIRIES,
     OTHER
 }
