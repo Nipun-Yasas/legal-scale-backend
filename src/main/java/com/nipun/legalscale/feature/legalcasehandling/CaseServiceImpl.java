@@ -210,6 +210,23 @@ public class CaseServiceImpl implements CaseService {
                                 .collect(Collectors.toList());
         }
 
+        @Override
+        @Transactional(readOnly = true)
+        public java.util.Map<String, Long> getCaseStatusCounts() {
+                return initialCaseRepository.findAll().stream()
+                                .collect(Collectors.groupingBy(c -> c.getStatus().name(), Collectors.counting()));
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public java.util.Map<String, Long> getAssignedCaseCountsPerOfficer() {
+                return initialCaseRepository.findAll().stream()
+                                .filter(c -> c.getAssignedOfficer() != null)
+                                .collect(Collectors.groupingBy(
+                                                c -> c.getAssignedOfficer().getFullName(),
+                                                Collectors.counting()));
+        }
+
         // ─── Supervisor Actions
         // ───────────────────────────────────────────────────────
 

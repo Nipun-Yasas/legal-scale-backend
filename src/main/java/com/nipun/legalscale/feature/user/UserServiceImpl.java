@@ -77,16 +77,23 @@ public class UserServiceImpl implements UserService {
                                 .orElseThrow(() -> new UsernameNotFoundException(
                                                 "User not found: " + request.getEmail()));
 
-                boolean isLegalDeptMember = isLegalDepartmentRole(request.getNewRole());
+                if (request.getNewRole() != null) {
+                        boolean isLegalDeptMember = isLegalDepartmentRole(request.getNewRole());
 
-                RoleEntity role = roleRepository.findByRoleName(request.getNewRole())
-                                .orElseGet(() -> roleRepository.save(
-                                                RoleEntity.builder()
-                                                                .roleName(request.getNewRole())
-                                                                .legalDepartmentMember(isLegalDeptMember)
-                                                                .build()));
+                        RoleEntity role = roleRepository.findByRoleName(request.getNewRole())
+                                        .orElseGet(() -> roleRepository.save(
+                                                        RoleEntity.builder()
+                                                                        .roleName(request.getNewRole())
+                                                                        .legalDepartmentMember(isLegalDeptMember)
+                                                                        .build()));
 
-                user.setRole(role);
+                        user.setRole(role);
+                }
+
+                if (request.getApproverLevel() != null) {
+                        user.setApproverLevel(request.getApproverLevel());
+                }
+
                 userRepository.save(user);
         }
 
@@ -98,38 +105,47 @@ public class UserServiceImpl implements UserService {
         }
 
         @Override
-        public java.util.Map<String, Long> getRoleCounts() {
+        public java.util.Map<String, Object> getRoleCounts() {
                 List<UserEntity> allUsers = userRepository.findAll();
 
-                return java.util.Map.of(
-                                "LEGAL_OFFICER",
+                java.util.Map<String, Object> response = new java.util.HashMap<>();
+
+                response.put("LEGAL_OFFICER",
                                 allUsers.stream()
                                                 .filter(u -> u.getRole() != null
                                                                 && u.getRole().getRoleName() == Role.LEGAL_OFFICER)
-                                                .count(),
-                                "LEGAL_SUPERVISOR",
+                                                .count());
+                response.put("LEGAL_SUPERVISOR",
                                 allUsers.stream()
                                                 .filter(u -> u.getRole() != null
                                                                 && u.getRole().getRoleName() == Role.LEGAL_SUPERVISOR)
-                                                .count(),
-                                "AGREEMENT_REVIEWER",
+                                                .count());
+                response.put("AGREEMENT_REVIEWER",
                                 allUsers.stream()
                                                 .filter(u -> u.getRole() != null
                                                                 && u.getRole().getRoleName() == Role.AGREEMENT_REVIEWER)
-                                                .count(),
-                                "AGREEMENT_APPROVER",
+                                                .count());
+                response.put("AGREEMENT_APPROVER",
                                 allUsers.stream()
                                                 .filter(u -> u.getRole() != null
                                                                 && u.getRole().getRoleName() == Role.AGREEMENT_APPROVER)
-                                                .count(),
-                                "MANAGEMENT",
+                                                .count());
+                response.put("MANAGEMENT",
                                 allUsers.stream()
                                                 .filter(u -> u.getRole() != null
                                                                 && u.getRole().getRoleName() == Role.MANAGEMENT)
-                                                .count(),
-                                "USER",
+                                                .count());
+                response.put("USER",
                                 allUsers.stream().filter(
                                                 u -> u.getRole() != null && u.getRole().getRoleName() == Role.USER)
                                                 .count());
+
+                java.util.Map<Integer, Long> approverLevelCounts = allUsers.stream()
+                                .filter(u -> u.getApproverLevel() != null)
+                                .collect(Collectors.groupingBy(UserEntity::getApproverLevel, Collectors.counting()));
+
+                response.put("approverLevels", approverLevelCounts);
+
+                return response;
         }
 }

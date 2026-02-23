@@ -27,6 +27,18 @@ public class CaseController {
         return ResponseEntity.ok(caseService.getCaseById(id));
     }
 
+    @GetMapping("/status-counts")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('MANAGEMENT')")
+    public ResponseEntity<java.util.Map<String, Long>> getCaseStatusCounts() {
+        return ResponseEntity.ok(caseService.getCaseStatusCounts());
+    }
+
+    @GetMapping("/officer-counts")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('MANAGEMENT', 'SYSTEM_ADMIN')")
+    public ResponseEntity<java.util.Map<String, Long>> getAssignedCaseCountsPerOfficer() {
+        return ResponseEntity.ok(caseService.getAssignedCaseCountsPerOfficer());
+    }
+
     // ─── Standalone Attachment Management ────────────────────────────────────────
 
     @PostMapping(value = "/{id}/attachments", consumes = "multipart/form-data")

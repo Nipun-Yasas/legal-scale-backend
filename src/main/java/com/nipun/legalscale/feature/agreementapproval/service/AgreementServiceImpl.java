@@ -414,4 +414,11 @@ public class AgreementServiceImpl implements AgreementService {
     public List<AgreementResponse> getAllAgreements() {
         return agreementRepository.findAll().stream().map(this::toResponse).collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Long> getAgreementStatusCounts() {
+        return agreementRepository.findAll().stream()
+                .collect(Collectors.groupingBy(a -> a.getStatus().name(), Collectors.counting()));
+    }
 }

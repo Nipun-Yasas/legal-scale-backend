@@ -14,7 +14,7 @@ public interface UserService {
 
     void changeUserRole(ChangeRoleRequest request);
 
-    java.util.Map<String, Long> getRoleCounts();
+    java.util.Map<String, Object> getRoleCounts();
 
     List<UserDetailsResponse> getAllOfficers();
 }

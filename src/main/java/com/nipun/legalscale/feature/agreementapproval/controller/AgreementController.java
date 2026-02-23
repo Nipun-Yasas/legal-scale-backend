@@ -61,6 +61,12 @@ public class AgreementController {
         return ResponseEntity.ok(agreementService.getMyAgreements());
     }
 
+    @GetMapping("/status-counts")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('MANAGEMENT')")
+    public ResponseEntity<java.util.Map<String, Long>> getAgreementStatusCounts() {
+        return ResponseEntity.ok(agreementService.getAgreementStatusCounts());
+    }
+
     @PostMapping("/{id}/request-review")
     public ResponseEntity<AgreementResponse> requestReview(
             @PathVariable Long id,
@@ -75,7 +81,6 @@ public class AgreementController {
             @RequestPart("document") MultipartFile document) {
         return ResponseEntity.ok(agreementService.uploadRevision(id, revisionNotes, document));
     }
-
 
     @GetMapping("/{id}")
     public ResponseEntity<AgreementResponse> getAgreementById(@PathVariable Long id) {

@@ -18,14 +18,14 @@ public class AdminController {
     private final UserService adminService;
 
     @GetMapping
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'MANAGEMENT')")
     public ResponseEntity<List<UserDetailsResponse>> getAllUsers() {
         return ResponseEntity.ok(adminService.getAllUsers());
     }
 
     @GetMapping("/role-counts")
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
-    public ResponseEntity<java.util.Map<String, Long>> getRoleCounts() {
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'MANAGEMENT')")
+    public ResponseEntity<java.util.Map<String, Object>> getRoleCounts() {
         return ResponseEntity.ok(adminService.getRoleCounts());
     }
 

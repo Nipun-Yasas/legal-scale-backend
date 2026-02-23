@@ -24,6 +24,10 @@ public interface CaseService {
 
     List<CaseResponse> getCasesCreatedByCurrentSupervisor();
 
+    java.util.Map<String, Long> getCaseStatusCounts();
+
+    java.util.Map<String, Long> getAssignedCaseCountsPerOfficer();
+
     // ─── Supervisor Actions
     // ───────────────────────────────────────────────────────
 

@@ -11,4 +11,5 @@ import lombok.NoArgsConstructor;
 public class ChangeRoleRequest {
     private String email;
     private Role newRole;
+    private Integer approverLevel;
 }

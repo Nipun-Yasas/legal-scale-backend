@@ -40,4 +40,6 @@ public interface AgreementService {
 
     // General
     List<AgreementResponse> getAllAgreements();
+
+    java.util.Map<String, Long> getAgreementStatusCounts();
 }
