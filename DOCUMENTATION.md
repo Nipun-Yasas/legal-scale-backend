@@ -76,3 +76,11 @@ The `DocumentService` is universally referenced for attaching binary objects to 
 
 **Integration mapping:**
 - Case attach -> AWS S3 upload (`bucketName`) -> `Document` repository tracking -> Attached Case reference table mapping.
+
+## 6. Improvements
+
+- Remove Unwanted endpoint and their services
+- Add proper error handling
+- Add proper logging
+- More moduler project structre
+
