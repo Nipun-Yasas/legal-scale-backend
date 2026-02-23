@@ -2,6 +2,9 @@ package com.nipun.legalscale.feature.supervisor;
 
 import com.nipun.legalscale.feature.legalcasehandling.CaseService;
 import com.nipun.legalscale.feature.legalcasehandling.dto.*;
+import com.nipun.legalscale.feature.agreementapproval.dto.AgreementResponse;
+import com.nipun.legalscale.feature.agreementapproval.dto.ReviewAgreementRequest;
+import com.nipun.legalscale.feature.agreementapproval.service.AgreementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +38,7 @@ import java.util.stream.Collectors;
  * Role guard: LEGAL_SUPERVISOR
  */
 @RestController
-@RequestMapping("/api/supervisor/cases")
+@RequestMapping("/api/supervisor")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('LEGAL_SUPERVISOR')")
 public class SupervisorController {
@@ -45,6 +48,7 @@ public class SupervisorController {
     private final InitialCaseRepository initialCaseRepository;
     private final ObjectMapper objectMapper;
     private final Validator validator;
+    private final AgreementService agreementService;
 
     /**
      * POST /api/supervisor/cases
@@ -53,7 +57,7 @@ public class SupervisorController {
      *
      * Content-Type: multipart/form-data
      */
-    @PostMapping(consumes = { "multipart/form-data" })
+    @PostMapping(value = "/cases", consumes = { "multipart/form-data" })
     public ResponseEntity<CaseResponse> createCase(
             @RequestParam("data") String dataJson,
             @RequestParam(value = "attachments", required = false) List<MultipartFile> attachments) {
@@ -84,7 +88,7 @@ public class SupervisorController {
      * GET /api/supervisor/cases/new
      * View all cases with status NEW that are awaiting review.
      */
-    @GetMapping("/new")
+    @GetMapping("/cases/new")
     public ResponseEntity<List<CaseResponse>> getNewCases() {
         return ResponseEntity.ok(caseService.getAllNewCases());
     }
@@ -93,7 +97,7 @@ public class SupervisorController {
      * GET /api/supervisor/cases/my
      * View all cases created by the current supervisor.
      */
-    @GetMapping("/my")
+    @GetMapping("/cases/my")
     public ResponseEntity<List<CaseResponse>> getMyCases() {
         return ResponseEntity.ok(caseService.getCasesCreatedByCurrentSupervisor());
     }
@@ -102,7 +106,7 @@ public class SupervisorController {
      * GET /api/supervisor/cases/activities
      * Aggregates comments and remarks for cases created by the current supervisor.
      */
-    @GetMapping("/activities")
+    @GetMapping("/cases/activities")
     public ResponseEntity<List<CaseActivityResponse>> getMyCaseActivities() {
         List<CaseResponse> cases = caseService.getCasesCreatedByCurrentSupervisor();
         List<CaseActivityResponse> activities = new ArrayList<>();
@@ -150,7 +154,7 @@ public class SupervisorController {
      * GET /api/supervisor/cases/officers
      * Retrieve a list of all legal officers along with assigned case stats.
      */
-    @GetMapping("/officers")
+    @GetMapping("/cases/officers")
     public ResponseEntity<List<OfficerStatsResponse>> getAllOfficersWithStats() {
         List<UserDetailsResponse> officers = userService.getAllOfficers();
 
@@ -174,7 +178,7 @@ public class SupervisorController {
      * GET /api/supervisor/cases
      * View all cases regardless of status.
      */
-    @GetMapping
+    @GetMapping("/cases")
     public ResponseEntity<List<CaseResponse>> getAllCases() {
         return ResponseEntity.ok(caseService.getAllCases());
     }
@@ -183,7 +187,7 @@ public class SupervisorController {
      * GET /api/supervisor/cases/{id}
      * View details of a specific case.
      */
-    @GetMapping("/{id}")
+    @GetMapping("/cases/{id}")
     public ResponseEntity<CaseResponse> getCaseById(@PathVariable Long id) {
         return ResponseEntity.ok(caseService.getCaseById(id));
     }
@@ -193,7 +197,7 @@ public class SupervisorController {
      * Assign a case to a Legal Officer.
      * This records the supervisor, the assigned officer, and the timestamp.
      */
-    @PostMapping("/{id}/assign")
+    @PostMapping("/cases/{id}/assign")
     public ResponseEntity<CaseResponse> assignCase(
             @PathVariable Long id,
             @Valid @RequestBody AssignCaseRequest request) {
@@ -207,7 +211,7 @@ public class SupervisorController {
      * When closing (CLOSED), closingRemarks are mandatory, closedBy / closedAt are
      * recorded.
      */
-    @PatchMapping("/{id}/status")
+    @PatchMapping("/cases/{id}/status")
     public ResponseEntity<CaseResponse> updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody UpdateCaseStatusRequest request) {
@@ -218,10 +222,56 @@ public class SupervisorController {
      * POST /api/supervisor/cases/{id}/comments
      * Add a comment to a case.
      */
-    @PostMapping("/{id}/comments")
+    @PostMapping("/cases/{id}/comments")
     public ResponseEntity<CaseCommentResponse> addComment(
             @PathVariable Long id,
             @Valid @RequestBody AddCommentRequest request) {
         return ResponseEntity.ok(caseService.supervisorAddComment(id, request));
+    }
+
+    // agreements
+
+    @PostMapping("/agreements/{id}/approve-reject")
+    public ResponseEntity<AgreementResponse> approveOrRejectAgreement(
+            @PathVariable Long id,
+            @RequestBody(required = false) ReviewAgreementRequest request) {
+        return ResponseEntity.ok(agreementService.approveOrReject(id, request));
+    }
+
+    @GetMapping("/agreements/pending")
+    public ResponseEntity<List<AgreementResponse>> getAgreementsForApproval() {
+        return ResponseEntity.ok(agreementService.getAgreementsForApproval());
+    }
+
+    @PostMapping("/agreements/{id}/approve")
+    public ResponseEntity<AgreementResponse> approveAgreement(
+            @PathVariable Long id,
+            @RequestBody(required = false) ReviewAgreementRequest request) {
+        if (request == null) {
+            request = new ReviewAgreementRequest();
+        }
+        request.setReviewStatus(com.nipun.legalscale.feature.agreementapproval.enums.AgreementStatus.APPROVED);
+        return ResponseEntity.ok(agreementService.approveOrReject(id, request));
+    }
+
+    @PostMapping("/agreements/{id}/reject")
+    public ResponseEntity<AgreementResponse> rejectAgreement(
+            @PathVariable Long id,
+            @RequestBody(required = false) ReviewAgreementRequest request) {
+        if (request == null) {
+            request = new ReviewAgreementRequest();
+        }
+        request.setReviewStatus(com.nipun.legalscale.feature.agreementapproval.enums.AgreementStatus.REJECTED);
+        return ResponseEntity.ok(agreementService.approveOrReject(id, request));
+    }
+
+    @PostMapping("/agreements/{id}/execute")
+    public ResponseEntity<AgreementResponse> executeAgreement(@PathVariable Long id) {
+        return ResponseEntity.ok(agreementService.executeAgreement(id));
+    }
+
+    @PostMapping("/agreements/{id}/sign")
+    public ResponseEntity<AgreementResponse> digitallySignAgreement(@PathVariable Long id) {
+        return ResponseEntity.ok(agreementService.digitallySignAgreement(id));
     }
 }

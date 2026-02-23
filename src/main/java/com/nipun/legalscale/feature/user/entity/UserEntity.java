@@ -39,6 +39,9 @@ public class UserEntity implements UserDetails {
     @Builder.Default
     private boolean isBanned = false;
 
+    @Column(name = "approver_level")
+    private Integer approverLevel;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.getRoleName().name()));

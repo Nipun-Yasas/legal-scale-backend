@@ -22,6 +22,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,6 +39,7 @@ public class AgreementServiceImpl implements AgreementService {
     private final DocumentService documentService;
     private final DocumentRepository documentRepository;
     private final InitialCaseRepository initialCaseRepository;
+    private final com.nipun.legalscale.feature.agreementapproval.repository.AgreementSignatureRepository signatureRepository;
 
     private UserEntity currentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -174,9 +176,41 @@ public class AgreementServiceImpl implements AgreementService {
 
             versionRepository.save(version);
             agreement.getVersions().add(version);
-            agreement.setStatus(AgreementStatus.IN_REVIEW); // Return to review after revision
+            agreement.setStatus(AgreementStatus.REVIEW_REQUESTED); // Return to review after revision
             agreement.setUpdatedAt(LocalDateTime.now());
         }
+
+        return toResponse(agreementRepository.save(agreement));
+    }
+
+    @Override
+    @Transactional
+    public AgreementResponse requestReview(Long agreementId, ReviewAgreementRequest request) {
+        AgreementEntity agreement = agreementRepository.findById(agreementId)
+                .orElseThrow(() -> new IllegalArgumentException("Agreement not found"));
+        UserEntity user = currentUser();
+
+        if (agreement.getStatus() != AgreementStatus.DRAFT) {
+            throw new IllegalStateException("Agreement is not in DRAFT status");
+        }
+
+        if (request.getReviewStatus() != AgreementStatus.REVIEW_REQUESTED) {
+            throw new IllegalArgumentException("Target status must be REVIEW_REQUESTED");
+        }
+
+        if (request.getRemarks() != null && !request.getRemarks().isBlank()) {
+            AgreementCommentEntity comment = AgreementCommentEntity.builder()
+                    .agreement(agreement)
+                    .commentedBy(user)
+                    .commentText(request.getRemarks())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            commentRepository.save(comment);
+            agreement.getComments().add(comment);
+        }
+
+        agreement.setStatus(request.getReviewStatus());
+        agreement.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(agreementRepository.save(agreement));
     }
@@ -219,11 +253,48 @@ public class AgreementServiceImpl implements AgreementService {
             agreement.getComments().add(comment);
         }
 
-        if (request.getReviewStatus() == AgreementStatus.REVISION_REQUESTED ||
+        if (request.getReviewStatus() == AgreementStatus.REVIEW_REQUESTED ||
+                request.getReviewStatus() == AgreementStatus.PENDING_APPROVAL ||
                 request.getReviewStatus() == AgreementStatus.APPROVED) {
             agreement.setStatus(request.getReviewStatus());
             agreement.setUpdatedAt(LocalDateTime.now());
+
+            if (request.getReviewStatus() == AgreementStatus.PENDING_APPROVAL) {
+                agreement.setReviewer(reviewer);
+            }
         }
+
+        return toResponse(agreementRepository.save(agreement));
+    }
+
+    @Override
+    @Transactional
+    public AgreementResponse respondToRevision(Long agreementId, ReviewAgreementRequest request) {
+        AgreementEntity agreement = agreementRepository.findById(agreementId).orElseThrow();
+        UserEntity user = currentUser();
+
+        if (agreement.getStatus() != AgreementStatus.REVIEW_REQUESTED) {
+            throw new IllegalStateException("Agreement is not in REVIEW_REQUESTED status");
+        }
+
+        if (request.getReviewStatus() != AgreementStatus.PENDING_APPROVAL
+                && request.getReviewStatus() != AgreementStatus.DRAFT) {
+            throw new IllegalArgumentException("Status must be PENDING_APPROVAL or DRAFT");
+        }
+
+        if (request.getRemarks() != null && !request.getRemarks().isBlank()) {
+            AgreementCommentEntity comment = AgreementCommentEntity.builder()
+                    .agreement(agreement)
+                    .commentedBy(user)
+                    .commentText(request.getRemarks())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            commentRepository.save(comment);
+            agreement.getComments().add(comment);
+        }
+
+        agreement.setStatus(request.getReviewStatus());
+        agreement.setUpdatedAt(LocalDateTime.now());
 
         return toResponse(agreementRepository.save(agreement));
     }
@@ -264,7 +335,28 @@ public class AgreementServiceImpl implements AgreementService {
             throw new IllegalArgumentException("Invalid status for approval process");
         }
 
-        agreement.setStatus(request.getReviewStatus());
+        AgreementStatus finalStatus = request.getReviewStatus();
+
+        if (finalStatus == AgreementStatus.REJECTED) {
+            Integer level = approver.getApproverLevel();
+            int approverLevel = level != null ? level : 1; // Assume 1 if null
+            if (approverLevel < 2) {
+                finalStatus = AgreementStatus.PENDING_APPROVAL;
+            }
+        }
+
+        if (request.getRemarks() != null && !request.getRemarks().isBlank()) {
+            AgreementCommentEntity comment = AgreementCommentEntity.builder()
+                    .agreement(agreement)
+                    .commentedBy(approver)
+                    .commentText(request.getRemarks())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            commentRepository.save(comment);
+            agreement.getComments().add(comment);
+        }
+
+        agreement.setStatus(finalStatus);
         agreement.setApprover(approver);
         agreement.setApprovalRemarks(request.getRemarks());
         agreement.setUpdatedAt(LocalDateTime.now());
@@ -288,10 +380,31 @@ public class AgreementServiceImpl implements AgreementService {
     @Transactional
     public AgreementResponse digitallySignAgreement(Long agreementId) {
         AgreementEntity agreement = agreementRepository.findById(agreementId).orElseThrow();
-        if (agreement.getStatus() != AgreementStatus.APPROVED && agreement.getStatus() != AgreementStatus.EXECUTED) {
-            throw new IllegalStateException("Agreement must be approved or executed to be signed");
+        UserEntity user = currentUser();
+
+        Integer level = user.getApproverLevel();
+        if (level == null || level < 2) {
+            throw new AccessDeniedException(
+                    "You dont have authority to sign the document");
         }
+
+        if (agreement.getStatus() != AgreementStatus.APPROVED) {
+            throw new IllegalStateException("Agreement must be approved to be signed");
+        }
+
+        String generatedKey = java.util.UUID.randomUUID().toString();
+
+        com.nipun.legalscale.feature.agreementapproval.entity.AgreementSignatureEntity signature = com.nipun.legalscale.feature.agreementapproval.entity.AgreementSignatureEntity
+                .builder()
+                .agreement(agreement)
+                .signedBy(user)
+                .cryptographicKey(generatedKey)
+                .signedAt(LocalDateTime.now())
+                .build();
+        signatureRepository.save(signature);
+
         agreement.setIsDigitallySigned(true);
+        agreement.setStatus(AgreementStatus.EXECUTED);
         agreement.setUpdatedAt(LocalDateTime.now());
         return toResponse(agreementRepository.save(agreement));
     }

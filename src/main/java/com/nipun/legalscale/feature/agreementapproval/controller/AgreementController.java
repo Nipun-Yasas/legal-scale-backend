@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nipun.legalscale.feature.agreementapproval.dto.AgreementResponse;
 import com.nipun.legalscale.feature.agreementapproval.dto.CreateAgreementRequest;
 import com.nipun.legalscale.feature.agreementapproval.service.AgreementService;
+import com.nipun.legalscale.feature.agreementapproval.dto.ReviewAgreementRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Valid;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -49,6 +51,23 @@ public class AgreementController {
                 .body(agreementService.createAgreement(request, document));
     }
 
+    @GetMapping("/all")
+    public ResponseEntity<List<AgreementResponse>> getAllAgreements() {
+        return ResponseEntity.ok(agreementService.getAllAgreements());
+    }
+
+    @GetMapping("/my")
+    public ResponseEntity<List<AgreementResponse>> getMyAgreements() {
+        return ResponseEntity.ok(agreementService.getMyAgreements());
+    }
+
+    @PostMapping("/{id}/request-review")
+    public ResponseEntity<AgreementResponse> requestReview(
+            @PathVariable Long id,
+            @RequestBody @Valid ReviewAgreementRequest request) {
+        return ResponseEntity.ok(agreementService.requestReview(id, request));
+    }
+
     @PostMapping(value = "/{id}/revisions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<AgreementResponse> uploadRevision(
             @PathVariable Long id,
@@ -57,10 +76,6 @@ public class AgreementController {
         return ResponseEntity.ok(agreementService.uploadRevision(id, revisionNotes, document));
     }
 
-    @GetMapping("/my")
-    public ResponseEntity<List<AgreementResponse>> getMyAgreements() {
-        return ResponseEntity.ok(agreementService.getMyAgreements());
-    }
 
     @GetMapping("/{id}")
     public ResponseEntity<AgreementResponse> getAgreementById(@PathVariable Long id) {
@@ -74,8 +89,4 @@ public class AgreementController {
         return ResponseEntity.ok(agreementService.addComment(id, commentText));
     }
 
-    @GetMapping("/all")
-    public ResponseEntity<List<AgreementResponse>> getAllAgreements() {
-        return ResponseEntity.ok(agreementService.getAllAgreements());
-    }
 }

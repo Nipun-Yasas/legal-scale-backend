@@ -14,6 +14,8 @@ public interface AgreementService {
 
     AgreementResponse uploadRevision(Long agreementId, String revisionNotes, MultipartFile document);
 
+    AgreementResponse requestReview(Long agreementId, ReviewAgreementRequest request);
+
     List<AgreementResponse> getMyAgreements();
 
     AgreementResponse getAgreementById(Long id);
@@ -22,6 +24,8 @@ public interface AgreementService {
     List<AgreementResponse> getAgreementsForReview();
 
     AgreementResponse reviewAgreement(Long agreementId, ReviewAgreementRequest request);
+
+    AgreementResponse respondToRevision(Long agreementId, ReviewAgreementRequest request);
 
     AgreementResponse addComment(Long agreementId, String commentText);
 
