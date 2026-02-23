@@ -16,6 +16,8 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @Service
 @RequiredArgsConstructor
@@ -70,6 +72,8 @@ public class AuthServiceImpl implements AuthService {
                                                         request.getPassword()));
                 } catch (DisabledException e) {
                         throw new AccountBannedException("Your account is banned from the system");
+                } catch (org.springframework.security.authentication.BadCredentialsException e) {
+                        throw new IllegalArgumentException("Email or password is incorrect");
                 }
 
                 UserEntity user = userRepository.findByEmail(request.getEmail())
@@ -79,6 +83,20 @@ public class AuthServiceImpl implements AuthService {
 
                 return AuthResponse.builder()
                                 .token(token)
+                                .email(user.getEmail())
+                                .fullName(user.getFullName())
+                                .role(user.getRole().getRoleName())
+                                .isMemberOfLegalDepartment(user.getRole().isLegalDepartmentMember())
+                                .build();
+        }
+
+        @Override
+        public AuthResponse getCurrentUser() {
+                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                UserEntity user = userRepository.findByEmail(auth.getName())
+                                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+                return AuthResponse.builder()
                                 .email(user.getEmail())
                                 .fullName(user.getFullName())
                                 .role(user.getRole().getRoleName())

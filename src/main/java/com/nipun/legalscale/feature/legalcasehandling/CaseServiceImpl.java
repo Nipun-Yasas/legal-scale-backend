@@ -92,20 +92,14 @@ public class CaseServiceImpl implements CaseService {
                                 .summaryOfFacts(c.getSummaryOfFacts())
                                 .status(c.getStatus())
                                 // created
-                                .createdByName(c.getCreatedBy().getFullName())
-                                .createdByEmail(c.getCreatedBy().getEmail())
+                                .createdSupervisorName(c.getCreatedSupervisor().getFullName())
+                                .createdSupervisorEmail(c.getCreatedSupervisor().getEmail())
                                 .createdAt(c.getCreatedAt())
                                 // assignment
                                 .assignedOfficerName(
                                                 c.getAssignedOfficer() != null ? c.getAssignedOfficer().getFullName()
                                                                 : null)
                                 .assignedOfficerEmail(c.getAssignedOfficer() != null ? c.getAssignedOfficer().getEmail()
-                                                : null)
-                                .assignedBySupervisorName(c.getAssignedBySupervisor() != null
-                                                ? c.getAssignedBySupervisor().getFullName()
-                                                : null)
-                                .assignedBySupervisorEmail(c.getAssignedBySupervisor() != null
-                                                ? c.getAssignedBySupervisor().getEmail()
                                                 : null)
                                 .assignedAt(c.getAssignedAt())
                                 // approval
@@ -147,7 +141,7 @@ public class CaseServiceImpl implements CaseService {
                                 .financialExposure(request.getFinancialExposure())
                                 .summaryOfFacts(request.getSummaryOfFacts())
                                 .status(CaseStatus.NEW)
-                                .createdBy(creator)
+                                .createdSupervisor(creator)
                                 .createdAt(LocalDateTime.now())
                                 .build();
 
@@ -179,7 +173,7 @@ public class CaseServiceImpl implements CaseService {
         @Override
         @Transactional(readOnly = true)
         public List<CaseResponse> getAllNewCases() {
-                return initialCaseRepository.findByStatus(CaseStatus.NEW).stream()
+                return initialCaseRepository.findByStatusAndAssignedOfficerIsNull(CaseStatus.NEW).stream()
                                 .map(this::toCaseResponse)
                                 .collect(Collectors.toList());
         }
@@ -207,6 +201,15 @@ public class CaseServiceImpl implements CaseService {
                                 .collect(Collectors.toList());
         }
 
+        @Override
+        @Transactional(readOnly = true)
+        public List<CaseResponse> getCasesCreatedByCurrentSupervisor() {
+                UserEntity supervisor = currentUser();
+                return initialCaseRepository.findByCreatedSupervisorId(supervisor.getId()).stream()
+                                .map(this::toCaseResponse)
+                                .collect(Collectors.toList());
+        }
+
         // ─── Supervisor Actions
         // ───────────────────────────────────────────────────────
 
@@ -227,7 +230,7 @@ public class CaseServiceImpl implements CaseService {
                 }
 
                 caseEntity.setAssignedOfficer(officer);
-                caseEntity.setAssignedBySupervisor(supervisor);
+
                 caseEntity.setAssignedAt(LocalDateTime.now());
 
                 return toCaseResponse(initialCaseRepository.save(caseEntity));

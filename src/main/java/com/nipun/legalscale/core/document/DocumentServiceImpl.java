@@ -6,19 +6,17 @@ import com.nipun.legalscale.core.document.repository.DocumentRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -28,14 +26,17 @@ import java.util.UUID;
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
-    private final S3Client s3Client;
 
-    @Value("${app.aws.s3.bucket-name}")
-    private String bucketName;
+    private final String uploadDir = "uploads";
 
     @PostConstruct
     public void init() {
-        log.info("S3 Document Service initialized for bucket: {}", bucketName);
+        try {
+            Files.createDirectories(Paths.get(uploadDir));
+            log.info("Local document upload directory initialized at: {}", uploadDir);
+        } catch (IOException e) {
+            log.error("Could not create upload directory", e);
+        }
     }
 
     @Override
@@ -48,22 +49,10 @@ public class DocumentServiceImpl implements DocumentService {
             String fileType = (contentType != null && !contentType.isBlank()) ? contentType
                     : "application/octet-stream";
 
-            String storedFileName = UUID.randomUUID() + "_" + originalFileName.replaceAll("[^a-zA-Z0-9.-]", "_"); // Replace
-                                                                                                                  // special
-                                                                                                                  // characters
-                                                                                                                  // that
-                                                                                                                  // might
-                                                                                                                  // cause
-                                                                                                                  // issues
+            String storedFileName = UUID.randomUUID() + "_" + originalFileName.replaceAll("[^a-zA-Z0-9.-]", "_");
 
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(storedFileName)
-                    .contentType(fileType)
-                    .build();
-
-            s3Client.putObject(putObjectRequest,
-                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+            Path targetLocation = Paths.get(uploadDir).resolve(storedFileName);
+            Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
 
             Document document = Document.builder()
                     .fileName(originalFileName)
@@ -76,9 +65,7 @@ public class DocumentServiceImpl implements DocumentService {
             Document saved = documentRepository.save(document);
             return toResponse(saved);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read file input stream: " + e.getMessage(), e);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to store file in S3: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to store file: " + e.getMessage(), e);
         }
     }
 
@@ -95,15 +82,15 @@ public class DocumentServiceImpl implements DocumentService {
                 .orElseThrow(() -> new IllegalArgumentException("Document not found with id: " + id));
 
         try {
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(document.getFileUrl())
-                    .build();
-
-            ResponseInputStream<GetObjectResponse> s3Object = s3Client.getObject(getObjectRequest);
-            return new InputStreamResource(s3Object);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to download file from S3: " + e.getMessage(), e);
+            Path filePath = Paths.get(uploadDir).resolve(document.getFileUrl()).normalize();
+            Resource resource = new UrlResource(filePath.toUri());
+            if (resource.exists() || resource.isReadable()) {
+                return resource;
+            } else {
+                throw new RuntimeException("Could not read file: " + document.getFileUrl());
+            }
+        } catch (MalformedURLException e) {
+            throw new RuntimeException("Could not download file: " + e.getMessage(), e);
         }
     }
 

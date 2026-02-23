@@ -66,10 +66,10 @@ public class InitialCaseEntity {
     // ─── Ownership & Assignment
     // ───────────────────────────────────────────────────
 
-    /** The user who filed/created this case */
+    /** The supervisor who created this case */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_id", nullable = false)
-    private UserEntity createdBy;
+    private UserEntity createdSupervisor;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
@@ -78,11 +78,6 @@ public class InitialCaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_officer_id")
     private UserEntity assignedOfficer;
-
-    /** The supervisor who made the assignment */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_by_supervisor_id")
-    private UserEntity assignedBySupervisor;
 
     private LocalDateTime assignedAt;
 
@@ -122,7 +117,7 @@ public class InitialCaseEntity {
      * Documents uploaded as supporting attachments for this case.
      * Uses a join table so the Document entity stays generic.
      */
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
     @JoinTable(name = "case_attachments", joinColumns = @JoinColumn(name = "case_id"), inverseJoinColumns = @JoinColumn(name = "document_id"))
     @Builder.Default
     private List<Document> supportingAttachments = new ArrayList<>();

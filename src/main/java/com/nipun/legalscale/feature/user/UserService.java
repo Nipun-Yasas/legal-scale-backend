@@ -7,7 +7,14 @@ import java.util.List;
 
 public interface UserService {
     List<UserDetailsResponse> getAllUsers();
+
     void banUser(String email);
+
     void unbanUser(String email);
+
     void changeUserRole(ChangeRoleRequest request);
+
+    java.util.Map<String, Long> getRoleCounts();
+
+    List<UserDetailsResponse> getAllOfficers();
 }

@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin/users")
+@RequestMapping("/api/admin")
 @RequiredArgsConstructor
 public class AdminController {
 
@@ -21,6 +21,12 @@ public class AdminController {
     @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public ResponseEntity<List<UserDetailsResponse>> getAllUsers() {
         return ResponseEntity.ok(adminService.getAllUsers());
+    }
+
+    @GetMapping("/role-counts")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    public ResponseEntity<java.util.Map<String, Long>> getRoleCounts() {
+        return ResponseEntity.ok(adminService.getRoleCounts());
     }
 
     @PatchMapping("/change-role")

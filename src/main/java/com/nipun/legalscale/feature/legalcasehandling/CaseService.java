@@ -22,6 +22,8 @@ public interface CaseService {
 
     List<CaseResponse> getCasesAssignedToCurrentOfficer();
 
+    List<CaseResponse> getCasesCreatedByCurrentSupervisor();
+
     // ─── Supervisor Actions
     // ───────────────────────────────────────────────────────
 

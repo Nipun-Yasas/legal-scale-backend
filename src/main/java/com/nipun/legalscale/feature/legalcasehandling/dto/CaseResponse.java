@@ -28,14 +28,13 @@ public class CaseResponse {
     private CaseStatus status;
 
     // Audit
-    private String createdByName;
-    private String createdByEmail;
+    private String createdSupervisorName;
+    private String createdSupervisorEmail;
     private LocalDateTime createdAt;
 
     private String assignedOfficerName;
     private String assignedOfficerEmail;
-    private String assignedBySupervisorName;
-    private String assignedBySupervisorEmail;
+
     private LocalDateTime assignedAt;
 
     private String approvedByName;

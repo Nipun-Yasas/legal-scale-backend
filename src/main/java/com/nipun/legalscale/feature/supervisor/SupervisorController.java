@@ -8,7 +8,27 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Validator;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.multipart.MultipartFile;
+import com.nipun.legalscale.feature.user.UserService;
+import com.nipun.legalscale.feature.admin.dto.UserDetailsResponse;
+import com.nipun.legalscale.feature.legalcasehandling.repository.InitialCaseRepository;
+import com.nipun.legalscale.feature.legalcasehandling.entity.InitialCaseEntity;
+import com.nipun.legalscale.feature.legalcasehandling.enums.CaseStatus;
+import com.nipun.legalscale.feature.supervisor.dto.OfficerStatsResponse;
+import com.nipun.legalscale.feature.supervisor.dto.CaseActivityResponse;
+
+import java.util.Collections;
+import java.util.Set;
 import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 /**
  * Supervisor-only endpoints.
@@ -21,6 +41,44 @@ import java.util.List;
 public class SupervisorController {
 
     private final CaseService caseService;
+    private final UserService userService;
+    private final InitialCaseRepository initialCaseRepository;
+    private final ObjectMapper objectMapper;
+    private final Validator validator;
+
+    /**
+     * POST /api/supervisor/cases
+     *
+     * Creates a new case and optionally attaches supporting documents in one shot.
+     *
+     * Content-Type: multipart/form-data
+     */
+    @PostMapping(consumes = { "multipart/form-data" })
+    public ResponseEntity<CaseResponse> createCase(
+            @RequestParam("data") String dataJson,
+            @RequestParam(value = "attachments", required = false) List<MultipartFile> attachments) {
+
+        // Deserialize the JSON string manually
+        CreateCaseRequest request;
+        try {
+            request = objectMapper.readValue(dataJson, CreateCaseRequest.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid JSON in 'data' field: " + e.getOriginalMessage());
+        }
+
+        // Run Bean Validation manually
+        Set<ConstraintViolation<CreateCaseRequest>> violations = validator.validate(request);
+        if (!violations.isEmpty()) {
+            throw new ConstraintViolationException(violations);
+        }
+
+        if (attachments == null) {
+            attachments = Collections.emptyList();
+        }
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(caseService.createCase(request, attachments));
+    }
 
     /**
      * GET /api/supervisor/cases/new
@@ -29,6 +87,87 @@ public class SupervisorController {
     @GetMapping("/new")
     public ResponseEntity<List<CaseResponse>> getNewCases() {
         return ResponseEntity.ok(caseService.getAllNewCases());
+    }
+
+    /**
+     * GET /api/supervisor/cases/my
+     * View all cases created by the current supervisor.
+     */
+    @GetMapping("/my")
+    public ResponseEntity<List<CaseResponse>> getMyCases() {
+        return ResponseEntity.ok(caseService.getCasesCreatedByCurrentSupervisor());
+    }
+
+    /**
+     * GET /api/supervisor/cases/activities
+     * Aggregates comments and remarks for cases created by the current supervisor.
+     */
+    @GetMapping("/activities")
+    public ResponseEntity<List<CaseActivityResponse>> getMyCaseActivities() {
+        List<CaseResponse> cases = caseService.getCasesCreatedByCurrentSupervisor();
+        List<CaseActivityResponse> activities = new ArrayList<>();
+
+        for (CaseResponse c : cases) {
+            // Process Comments
+            if (c.getComments() != null) {
+                for (CaseCommentResponse comment : c.getComments()) {
+                    activities.add(CaseActivityResponse.builder()
+                            .type("COMMENT")
+                            .caseId(c.getId())
+                            .caseTitle(c.getCaseTitle())
+                            .referenceNumber(c.getReferenceNumber())
+                            .authorName(comment.getCommentedByName())
+                            .authorEmail(comment.getCommentedByEmail())
+                            .content(comment.getComment())
+                            .timestamp(comment.getCommentedAt())
+                            .build());
+                }
+            }
+
+            // Process Closing Remarks
+            if (c.getClosingRemarks() != null && !c.getClosingRemarks().isBlank()) {
+                activities.add(CaseActivityResponse.builder()
+                        .type("CLOSING_REMARK")
+                        .caseId(c.getId())
+                        .caseTitle(c.getCaseTitle())
+                        .referenceNumber(c.getReferenceNumber())
+                        .authorName(c.getClosedByName())
+                        .authorEmail(c.getClosedByEmail())
+                        .content(c.getClosingRemarks())
+                        .timestamp(c.getClosedAt())
+                        .build());
+            }
+        }
+
+        // Sort dynamically using Java 8 comparators (lambda expression) to avoid syntax
+        // restrictions
+        activities.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()));
+
+        return ResponseEntity.ok(activities);
+    }
+
+    /**
+     * GET /api/supervisor/cases/officers
+     * Retrieve a list of all legal officers along with assigned case stats.
+     */
+    @GetMapping("/officers")
+    public ResponseEntity<List<OfficerStatsResponse>> getAllOfficersWithStats() {
+        List<UserDetailsResponse> officers = userService.getAllOfficers();
+
+        List<OfficerStatsResponse> response = officers.stream().map(officer -> {
+            List<InitialCaseEntity> assignedCases = initialCaseRepository.findByAssignedOfficerId(officer.getId());
+
+            Map<CaseStatus, Long> countsByStatus = assignedCases.stream()
+                    .collect(Collectors.groupingBy(InitialCaseEntity::getStatus, Collectors.counting()));
+
+            return OfficerStatsResponse.builder()
+                    .officerDetails(officer)
+                    .totalAssignedCases(assignedCases.size())
+                    .caseCountsByStatus(countsByStatus)
+                    .build();
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
     }
 
     /**

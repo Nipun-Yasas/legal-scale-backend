@@ -10,7 +10,11 @@ public interface InitialCaseRepository extends JpaRepository<InitialCaseEntity, 
 
     List<InitialCaseEntity> findByStatus(CaseStatus status);
 
+    List<InitialCaseEntity> findByStatusAndAssignedOfficerIsNull(CaseStatus status);
+
     List<InitialCaseEntity> findByAssignedOfficerId(Long officerId);
+
+    List<InitialCaseEntity> findByCreatedSupervisorId(Long supervisorId);
 
     boolean existsByReferenceNumber(String referenceNumber);
 }
